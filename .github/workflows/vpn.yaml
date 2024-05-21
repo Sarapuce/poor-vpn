@@ -11,6 +11,6 @@ jobs:
     - run: echo 'net.ipv4.ip_forward = 1' | sudo tee -a /etc/sysctl.d/99-tailscale.conf
     - run: echo 'net.ipv6.conf.all.forwarding = 1' | sudo tee -a /etc/sysctl.d/99-tailscale.conf
     - run: sudo sysctl -p /etc/sysctl.d/99-tailscale.conf
-    - run: sudo tailscale up --advertise-exit-node --authkey ${{ secrets.AUTHKEY }}
+    - run: sudo tailscale up --advertise-exit-node --authkey ${{ secrets.TAILSCALE_TOKEN }}
     - run: sudo tailscale ip | head -n 1
     - run: sleep infinity
