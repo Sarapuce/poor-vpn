@@ -2,6 +2,7 @@ import json
 import os
 import typer
 import github
+import tailscale
 
 app = typer.Typer()
 
@@ -21,7 +22,7 @@ def write_config(config_data):
         json.dump(config_data, f, indent=4)
 
 def check_config(config):
-    return "repo" in config and "action_name" in config and "github_action" in config and "tailscale_auth_token" in config and "tailscale_api_token" in config
+    return "repo" in config and "action_name" in config and "action_name" in config and "tailscale_auth_token" in config and "tailscale_api_token" in config
 
 def print_error(s):
     typer.echo(typer.style(s, fg=typer.colors.RED))
@@ -62,6 +63,9 @@ def connect():
     
     g = github.github(config["github_token"], config["repo"], config["action_name"])
     print_info("[+] Connected to Github!")
+
+    t = tailscale.tailscale(config["tailscale_api_token"])
+    print_info("[+] Connected to Tailscale!")
 
 
 if __name__ == "__main__":
