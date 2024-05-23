@@ -67,6 +67,10 @@ def connect():
     t = tailscale.tailscale(config["tailscale_api_token"])
     print_info("[+] Connected to Tailscale!")
 
+    vpn_deleted = t.kill_vpns()
+    if vpn_deleted:
+        print_info(f"[+] Removed {vpn_deleted} old VPN{'s' * bool(vpn_deleted - 1)}")
+
 
 if __name__ == "__main__":
     app()
