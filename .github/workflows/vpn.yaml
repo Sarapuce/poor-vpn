@@ -6,11 +6,13 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - run: curl -fsSL https://tailscale.com/install.sh | sh
-    - run: echo 'net.ipv4.ip_forward = 1' | sudo tee -a /etc/sysctl.d/99-tailscale.conf
-    - run: echo 'net.ipv6.conf.all.forwarding = 1' | sudo tee -a /etc/sysctl.d/99-tailscale.conf
-    - run: sudo sysctl -p /etc/sysctl.d/99-tailscale.conf
-    - run: sudo tailscale up --advertise-exit-node --authkey ${{ secrets.TAILSCALE_TOKEN }} --advertise-tags=tag:vpn
-    - run: tailscale ip | head -n 1
-    - run: sleep 7200
+    - name: Setup Tailscale
+      run: |
+        curl -fsSL https://tailscale.com/install.sh | sh
+        echo 'net.ipv4.ip_forward = 1' | sudo tee -a /etc/sysctl.d/99-tailscale.conf
+        echo 'net.ipv6.conf.all.forwarding = 1' | sudo tee -a /etc/sysctl.d/99-tailscale.conf
+        sudo sysctl -p /etc/sysctl.d/99-tailscale.conf
+        sudo tailscale up --advertise-exit-node --authkey ${{ secrets.TAILSCALE_TOKEN }} --advertise-tags=tag:vpn
+        sudo tailscale ip | head -n 1
+    - name: Sleeping
+      run: sleep 7200

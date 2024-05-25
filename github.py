@@ -55,4 +55,13 @@ class github:
     r = requests.put(url, headers=headers, json=data)
     r.raise_for_status()
 
-
+  def trigger_vpn(self):
+    headers = self.generate_headers()
+    data = {
+      "ref": "main",
+      "inputs": {}
+    }
+    url = f"https://api.github.com/repos/{self.repo}/actions/workflows/{self.vpn_workflow_name}/dispatches"
+    r = requests.post(url, headers=headers, json=data)
+    r.raise_for_status()
+    print(r.text)

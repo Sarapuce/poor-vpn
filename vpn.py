@@ -71,6 +71,9 @@ def connect():
     if vpn_deleted:
         print_info(f"[+] Removed {vpn_deleted} old VPN{'s' * bool(vpn_deleted - 1)}")
 
+    g.trigger_vpn()
+    print_info("[+] VPN initialisation stated")
+
 
 if __name__ == "__main__":
     app()
