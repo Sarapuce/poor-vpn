@@ -1,3 +1,4 @@
+import time
 import requests
 from base64 import b64encode
 from nacl import encoding, public
@@ -64,4 +65,49 @@ class github:
     url = f"https://api.github.com/repos/{self.repo}/actions/workflows/{self.vpn_workflow_name}/dispatches"
     r = requests.post(url, headers=headers, json=data)
     r.raise_for_status()
-    print(r.text)
+
+  def get_run_ids(self):
+    headers = self.generate_headers()
+    url = f"https://api.github.com/repos/{self.repo}/actions/workflows/{self.vpn_workflow_name}/runs"
+    r = requests.get(url, headers=headers)
+    r.raise_for_status()
+    return [run["id"] for run in r.json()["workflow_runs"]]
+
+  def delete_runs(self):
+    run_ids = self.get_run_ids()
+    if not run_ids:
+      return 0
+    headers = self.generate_headers()
+    for run_id in run_ids:
+      url = f"https://api.github.com/repos/{self.repo}/actions/runs/{run_id}"
+      r = requests.delete(url, headers=headers)
+      r.raise_for_status()
+    return 1
+
+  def check_tailscale_finished(self, run_id):
+    headers = self.generate_headers()
+    url = f"https://api.github.com/repos/{self.repo}/actions/runs/{run_id}/jobs"
+    r = requests.get(url, headers=headers)
+    r.raise_for_status()
+    # print(r.json()["jobs"])
+    return [step["status"] == "completed" for step in r.json()["jobs"][0]["steps"] if step["name"] == "Setup Tailscale"][0]
+
+  def wait_tail_scale_setup(self): 
+    finished = False
+    top = time.time()
+    while not finished:
+      time.sleep(2)
+      if time.time() - top > 60:
+        return 0
+      try:
+        run_id = self.get_run_ids()[0]
+        finished = self.check_tailscale_finished(run_id)
+      except:
+        finished = False
+      print(finished)
+    return 1
+
+  def init_vpn(self):
+    self.delete_runs()
+    self.trigger_vpn()
+  

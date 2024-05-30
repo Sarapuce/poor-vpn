@@ -1,5 +1,5 @@
-import json
 import os
+import json
 import typer
 import github
 import tailscale
@@ -71,8 +71,16 @@ def connect():
     if vpn_deleted:
         print_info(f"[+] Removed {vpn_deleted} old VPN{'s' * bool(vpn_deleted - 1)}")
 
+    if g.delete_runs():
+        print_info("[+] Deleted all old workflow runs")
+
     g.trigger_vpn()
-    print_info("[+] VPN initialisation stated")
+    print_info("[+] Waiting tailscale setup")
+    if not g.wait_tail_scale_setup():
+        print_error("[-] Tailscale not setup after 60 seconds")
+        exit(1)
+    print_info("[+] Tailscale setup")
+
 
 
 if __name__ == "__main__":
