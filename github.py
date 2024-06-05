@@ -104,7 +104,6 @@ class github:
         finished = self.check_tailscale_finished(run_id)
       except:
         finished = False
-      print(finished)
     return 1
 
   def init_vpn(self):
