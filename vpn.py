@@ -1,8 +1,11 @@
 import os
+import time
 import json
 import typer
 import github
+import atexit
 import tailscale
+import subprocess
 
 app = typer.Typer()
 
@@ -50,6 +53,14 @@ def validate_yes_no(value: str) -> bool:
     else:
         raise typer.BadParameter("Please enter 'y' for yes or 'n' for no.")
 
+def unplug_tailscale():
+    print_info("[+] Unplugging tailscale exit node")
+    command = ["tailscale", "set", f"--exit-node="]
+    _, stderr = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True).communicate()
+    if stderr:
+        print_error(f"[-] Failed to execute `{' '.join(command)}`")
+        print_error(stderr)
+
 @app.command()
 def setup():
     """Setup the various variables needed to work with poor-vpn"""
@@ -76,7 +87,7 @@ def setup():
     if check_acl:
         print_error(f"[-] {check_acl}")
         exit()
-        
+
     if reset_auth and config.get("tailscale_auth_token_id", ""):
         t.delete_key(config["tailscale_auth_token_id"])
         config["tailscale_auth_token_id"] = ""
@@ -118,6 +129,7 @@ def connect():
         print_info("[+] Deleted all old workflow runs")
 
     g.trigger_vpn()
+    atexit.register(g.stop_runs)
     print_info("[+] Waiting tailscale setup")
     if not g.wait_tail_scale_setup():
         print_error("[-] Tailscale not setup after 60 seconds")
@@ -125,6 +137,23 @@ def connect():
     print_info("[+] Tailscale setup")
 
     vpn_ip = t.get_vpn_ip()
+    print_info(f"[+] VPN ip : {vpn_ip}")
+    command = ["tailscale", "up"]
+    _, stderr = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True).communicate()
+    if stderr:
+        print_error(f"[-] Failed to execute `{' '.join(command)}`")
+        exit()
+    atexit.register(unplug_tailscale)
+    command = ["tailscale", "set", f"--exit-node={vpn_ip}"]
+    _, stderr = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True).communicate()
+    if stderr:
+        print_error(f"[-] Failed to execute `{' '.join(command)}`")
+        print_error(stderr)
+        exit()
+    print_info("[+] Connected!")
+    while(1):
+        time.sleep(1)
+        
     
 @app.command()
 def test():
@@ -134,12 +163,13 @@ def test():
         exit(1)
     print_info("[+] Config loaded!")
 
-    t = tailscale.tailscale(config["tailscale_api_token"])
-    print_info("[+] Connected to Tailscale!")
-
-    check_acl = t.check_acl()
-    if check_acl:
-        print_error(f"[-] {check_acl}")
+    command = ["tailscale", "up"]
+    _, stderr = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True).communicate()
+    if stderr:
+        print_error(f"[-] Failed to execute `{' '.join(command)}`")
+        exit()
+    print_info("[+] Tailscale up!")
+    
 
 
 

@@ -49,7 +49,7 @@ class tailscale:
     for device in devices[1:]:
       if device["created"] > most_recent_device["created"]:
         most_recent_device = device
-    print(most_recent_device["addresses"][0])
+    return most_recent_device["addresses"][0]
 
   def verify_auth_keys(self, key_id):
     keys = self.call_api("/tailnet/-/keys")

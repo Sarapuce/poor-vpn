@@ -73,6 +73,17 @@ class github:
     r.raise_for_status()
     return [run["id"] for run in r.json()["workflow_runs"]]
 
+  def stop_runs(self):
+    run_ids = self.get_run_ids()
+    if not run_ids:
+      return 0
+    headers = self.generate_headers()
+    for run_id in run_ids:
+      url = f"https://api.github.com/repos/{self.repo}/actions/runs/{run_id}/cancel"
+      r = requests.post(url, headers=headers)
+      r.raise_for_status()
+    return 1
+
   def delete_runs(self):
     run_ids = self.get_run_ids()
     if not run_ids:
