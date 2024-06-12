@@ -1,9 +1,11 @@
+import re
+import json
 import requests
 from datetime import datetime, timezone
 
 class tailscale:
 
-  def call_api(self, endpoint, verb='GET', payload={}):
+  def call_api(self, endpoint, verb='GET', payload={}, json=True):
     # Remove extra / at the start of the endpoint
     if endpoint.startswith('/'):
       endpoint = endpoint[1:]
@@ -17,7 +19,10 @@ class tailscale:
     if verb == 'POST':
       r = requests.post(url, headers=headers, json=payload)
     r.raise_for_status()
-    return r.json()
+    if json:
+      return r.json()
+    else:
+      return r.text
   
   def __init__(self, tailscale_token):
     self.token = tailscale_token
@@ -77,3 +82,15 @@ class tailscale:
     }
     key = self.call_api("/tailnet/-/keys", verb="POST", payload=payload)
     return key
+
+  def check_acl(self):
+    acl = self.call_api("tailnet/-/acl", json=False)
+    acl = re.sub(r'//.*?\n', '', acl)
+    acl = re.sub(r'//.*?$', '', acl, flags=re.MULTILINE)
+    acl = acl.replace("\n", "").replace("\t", "").replace(",}", "}").replace(",]", "]")
+    acl = json.loads(acl)
+    if not acl.get("tagOwners", False) or not acl["tagOwners"].get("tag:vpn", False) or not "tag:vpn" in acl["tagOwners"]["tag:vpn"]:
+      return "tagOwners field must be configured like this : \"tagOwners\": {\"tag:vpn\": [\"tag:vpn\", \"your@email.com\"]}"
+    if not acl.get("autoApprovers", False) or not acl["autoApprovers"].get("exitNode", False) or not "tag:vpn" in acl["autoApprovers"]["exitNode"]:
+      return "autoApprovers field must be configured like this : \"autoApprovers\": {\"exitNode\": [\"tag:vpn\", \"your@email.com\"]}"
+    return ""

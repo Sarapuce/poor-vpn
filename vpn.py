@@ -71,7 +71,12 @@ def setup():
     print_info("[+] Connected to Github!")
     t = tailscale.tailscale(tailscale_api_token)
     print_info("[+] Connected to Tailscale!")
-    
+
+    check_acl = t.check_acl()
+    if check_acl:
+        print_error(f"[-] {check_acl}")
+        exit()
+        
     if reset_auth and config.get("tailscale_auth_token_id", ""):
         t.delete_key(config["tailscale_auth_token_id"])
         config["tailscale_auth_token_id"] = ""
@@ -132,7 +137,10 @@ def test():
     t = tailscale.tailscale(config["tailscale_api_token"])
     print_info("[+] Connected to Tailscale!")
 
-    t.create_auth_key()
+    check_acl = t.check_acl()
+    if check_acl:
+        print_error(f"[-] {check_acl}")
+
 
 
 if __name__ == "__main__":
