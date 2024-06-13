@@ -55,7 +55,7 @@ def validate_yes_no(value: str) -> bool:
 
 def unplug_tailscale():
     print_info("[+] Unplugging tailscale exit node")
-    command = ["tailscale", "set", f"--exit-node="]
+    command = ["./tailscale_down.sh"]
     _, stderr = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True).communicate()
     if stderr:
         print_error(f"[-] Failed to execute `{' '.join(command)}`")
@@ -134,21 +134,17 @@ def connect():
     if not g.wait_tail_scale_setup():
         print_error("[-] Tailscale not setup after 60 seconds")
         exit(1)
-    print_info("[+] Tailscale setup")
+    print_info("[+] Tailscale is up")
 
+    time.sleep(1)
     vpn_ip = t.get_vpn_ip()
     print_info(f"[+] VPN ip : {vpn_ip}")
-    command = ["tailscale", "up"]
-    _, stderr = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True).communicate()
-    if stderr:
-        print_error(f"[-] Failed to execute `{' '.join(command)}`")
-        exit()
+    
     atexit.register(unplug_tailscale)
-    command = ["tailscale", "set", f"--exit-node={vpn_ip}"]
+    command = ["./tailscale_up.sh", vpn_ip]
     _, stderr = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True).communicate()
     if stderr:
         print_error(f"[-] Failed to execute `{' '.join(command)}`")
-        print_error(stderr)
         exit()
     print_info("[+] Connected!")
     while(1):
@@ -161,14 +157,6 @@ def test():
     if not check_config(config):
         print_error("[-] Please start vpn.py setup to configure the application")
         exit(1)
-    print_info("[+] Config loaded!")
-
-    command = ["tailscale", "up"]
-    _, stderr = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True).communicate()
-    if stderr:
-        print_error(f"[-] Failed to execute `{' '.join(command)}`")
-        exit()
-    print_info("[+] Tailscale up!")
     
 
 
