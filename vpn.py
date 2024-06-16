@@ -4,6 +4,7 @@ import json
 import typer
 import github
 import atexit
+import shutil
 import tailscale
 import subprocess
 
@@ -32,7 +33,8 @@ def check_config(config):
         "tailscale_auth_token",
         "tailscale_auth_token_id",
         "tailscale_api_token",
-        "github_token"
+        "github_token",
+        "safe_mode"
     ]
     config_valid = True
     for parameter in parameters_needed:
@@ -76,12 +78,29 @@ def start_vpn(github_client, tailscale_client):
     return vpn_ip
 
 def connect_vpn(vpn_ip):
-        command = [f"{PWD}/tailscale_up.sh", vpn_ip]
-        _, stderr = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True).communicate()
-        if stderr:
-            print_error(f"[-] Failed to execute `{' '.join(command)}`")
-            exit()
-        print_info("[+] Connected!")
+    command = [f"{PWD}/tailscale_up.sh", vpn_ip]
+    _, stderr = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True).communicate()
+    if stderr:
+        print_error(f"[-] Failed to execute `{' '.join(command)}`")
+        print_error(stderr)
+        exit()
+    print_info("[+] Connected!")
+
+def ping(host, ping_count=3, timeout=10):
+    command = ["ping", f"{host}", "-c", f"{ping_count}", "-w", f"{timeout}"]
+    output = subprocess.Popen(command, stdout=subprocess.PIPE, encoding="utf-8")
+
+    for line in output.stdout:
+        if "received" in line:
+            packet_received = line.split(",")[1].split(" ")[1]
+            return int(packet_received) > 0
+    return False
+
+def is_sudo():
+    return not os.geteuid()
+
+def is_tailscale():
+    return shutil.which("tailscale") is not None
 
 @app.command()
 def setup():
@@ -93,11 +112,13 @@ def setup():
     github_token         = typer.prompt(f"Enter your github token [{8 * bool(len(config.get('github_token', ''))) * '*'}]", default=config.get("github_token", ""), show_default=False, hide_input=True)
     tailscale_api_token  = typer.prompt(f"Enter your tailscale api token [{8 * bool(len(config.get('tailscale_api_token', ''))) * '*'}]", default=config.get("tailscale_api_token", ""), show_default=False, hide_input=True)
     reset_auth           = typer.prompt("Do you want to reset tailscale auth token? (y/N)", default="n", show_default=False) in ["y", "Y", "yes", "Yes"]
+    safe_mode            = typer.prompt("Do you want to enable safe mode? (Y/n)", default="y", show_default=False) not in ["n", "N", "no", "No"]
 
     config["repo"]                 = repo
     config["action_name"]          = action_name
     config["github_token"]         = github_token
     config["tailscale_api_token"]  = tailscale_api_token
+    config["safe_mode"]            = safe_mode
 
     write_config(config)
     g = github.github(github_token, repo, action_name)
@@ -120,12 +141,20 @@ def setup():
         config["tailscale_auth_token_id"] = key["id"]
         write_config(config)
         print_info("[+] Generated auth token for tailscale...")
+        g.set_tailscale_secret(config["tailscale_auth_token"])
 
-    g.set_tailscale_secret(config["tailscale_auth_token"])
     print_info("[+] Configuration saved!")
 
 @app.command()
 def connect():
+    if not is_sudo():
+        print_error("[-] To use tailscale, this script must be executed as root")
+        exit()
+    
+    if not is_tailscale():
+        print_error("[-] To use tailscale, tailscale must be installed and in the path of the root user")
+        exit()
+    
     config = read_config()
     if not check_config(config):
         print_error("[-] Please start vpn.py setup to configure the application")
@@ -153,12 +182,25 @@ def connect():
     atexit.register(g.stop_runs)
     vpn_ip = start_vpn(g, t)
     
-    atexit.register(unplug_tailscale)
+    if not config["safe_mode"]:
+        atexit.register(unplug_tailscale)
     connect_vpn(vpn_ip)
 
-    while(1):
-        time.sleep(1)
-        
+    while(True):
+        if ping(vpn_ip):
+            time.sleep(5)
+        else:
+            if config["safe_mode"]:
+                print_info("[+] Safe mode activated, not disabling tailscale.")
+                exit(1)
+            unplug_tailscale()
+            if not ping("google.com"):
+                print_error("[-] Can't connect to google.com without VPN, your internet connexion is probably down")
+            else:
+                if not ping(vpn_ip): # Catch the case where the connexion get back during the ping to google
+                    print_info("[+] VPN seems down, reconnecting...")
+                    vpn_ip = start_vpn(g, t)
+            connect_vpn(vpn_ip)
     
 @app.command()
 def test():
@@ -167,7 +209,11 @@ def test():
         print_error("[-] Please start vpn.py setup to configure the application")
         exit(1)
 
-    print(os.path.dirname(os.path.abspath(__file__)))
+    g = github.github(config["github_token"], config["repo"], config["action_name"])
+    print_info("[+] Connected to Github!")
+
+    print(g.get_run_ids())
+    print(g.get_run_ids(include_completed=False))
     
 
 

@@ -66,22 +66,23 @@ class github:
     r = requests.post(url, headers=headers, json=data)
     r.raise_for_status()
 
-  def get_run_ids(self):
+  def get_run_ids(self, include_completed=True):
     headers = self.generate_headers()
     url = f"https://api.github.com/repos/{self.repo}/actions/workflows/{self.vpn_workflow_name}/runs"
     r = requests.get(url, headers=headers)
     r.raise_for_status()
-    return [run["id"] for run in r.json()["workflow_runs"]]
+    return [run["id"] for run in r.json()["workflow_runs"] if include_completed or run["status"] != "completed"]
 
   def stop_runs(self):
-    run_ids = self.get_run_ids()
+    run_ids = self.get_run_ids(include_completed=False)
     if not run_ids:
       return 0
     headers = self.generate_headers()
     for run_id in run_ids:
       url = f"https://api.github.com/repos/{self.repo}/actions/runs/{run_id}/cancel"
       r = requests.post(url, headers=headers)
-      r.raise_for_status()
+      if r.status_code != 409:
+        r.raise_for_status()
     return 1
 
   def delete_runs(self):
