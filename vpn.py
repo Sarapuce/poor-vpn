@@ -10,6 +10,7 @@ import subprocess
 app = typer.Typer()
 
 CONFIG_FILE = "config.json"
+PWD         = os.path.dirname(os.path.abspath(__file__))
 
 def read_config():
     if os.path.exists(CONFIG_FILE):
@@ -55,11 +56,32 @@ def validate_yes_no(value: str) -> bool:
 
 def unplug_tailscale():
     print_info("[+] Unplugging tailscale exit node")
-    command = ["./tailscale_down.sh"]
+    command = [f"{PWD}/tailscale_down.sh"]
     _, stderr = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True).communicate()
     if stderr:
         print_error(f"[-] Failed to execute `{' '.join(command)}`")
         print_error(stderr)
+
+def start_vpn(github_client, tailscale_client):
+    github_client.trigger_vpn()
+    print_info("[+] Waiting for tailscale to setup...")
+    if not github_client.wait_tail_scale_setup():
+        print_error("[-] Tailscale not setup after 60 seconds")
+        exit(1)
+    print_info("[+] Tailscale is up")
+
+    time.sleep(1)
+    vpn_ip = tailscale_client.get_vpn_ip()
+    print_info(f"[+] VPN ip : {vpn_ip}")
+    return vpn_ip
+
+def connect_vpn(vpn_ip):
+        command = [f"{PWD}/tailscale_up.sh", vpn_ip]
+        _, stderr = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True).communicate()
+        if stderr:
+            print_error(f"[-] Failed to execute `{' '.join(command)}`")
+            exit()
+        print_info("[+] Connected!")
 
 @app.command()
 def setup():
@@ -128,25 +150,12 @@ def connect():
     if g.delete_runs():
         print_info("[+] Deleted all old workflow runs")
 
-    g.trigger_vpn()
     atexit.register(g.stop_runs)
-    print_info("[+] Waiting tailscale setup")
-    if not g.wait_tail_scale_setup():
-        print_error("[-] Tailscale not setup after 60 seconds")
-        exit(1)
-    print_info("[+] Tailscale is up")
-
-    time.sleep(1)
-    vpn_ip = t.get_vpn_ip()
-    print_info(f"[+] VPN ip : {vpn_ip}")
+    vpn_ip = start_vpn(g, t)
     
     atexit.register(unplug_tailscale)
-    command = ["./tailscale_up.sh", vpn_ip]
-    _, stderr = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True).communicate()
-    if stderr:
-        print_error(f"[-] Failed to execute `{' '.join(command)}`")
-        exit()
-    print_info("[+] Connected!")
+    connect_vpn(vpn_ip)
+
     while(1):
         time.sleep(1)
         
@@ -157,6 +166,8 @@ def test():
     if not check_config(config):
         print_error("[-] Please start vpn.py setup to configure the application")
         exit(1)
+
+    print(os.path.dirname(os.path.abspath(__file__)))
     
 
 
