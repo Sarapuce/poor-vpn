@@ -4,7 +4,7 @@ This is free way to get a simple VPN. The location of the IP will be in USA.
 
 ## Principle
 
-It uses Github runners as an exit node and tailscale to make the connection between your computer and the runner. Tailscale could probably be replaced by something else.
+It uses Github runners as an exit node and tailscale to make the connection between your computer and the runner. Tailscale could probably be replaced by something else. (Github if you read this, It is just a PoC I would never use it)
 
 ## Requierments
 - [Tailscale](https://tailscale.com/) CLI installed
