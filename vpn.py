@@ -186,10 +186,9 @@ def connect():
         atexit.register(unplug_tailscale)
     connect_vpn(vpn_ip)
 
+    top = time.time()
     while(True):
-        if ping(vpn_ip):
-            time.sleep(5)
-        else:
+        if not ping(vpn_ip):
             if config["safe_mode"]:
                 print_info("[+] Safe mode activated, not disabling tailscale.")
                 exit(1)
@@ -201,7 +200,15 @@ def connect():
                     print_info("[+] VPN seems down, reconnecting...")
                     vpn_ip = start_vpn(g, t)
             connect_vpn(vpn_ip)
-    
+
+        if not config["safe_mode"] and time.time() - top > 6900:
+            print_info("[+] Creating a new VPN to avoid timeout")
+            vpn_ip = start_vpn(g, t)
+            connect_vpn(vpn_ip)
+            top = time.time()
+        
+        time.sleep(5)
+
 @app.command()
 def test():
     config = read_config()
